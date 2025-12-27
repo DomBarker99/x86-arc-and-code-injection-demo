@@ -1,0 +1,75 @@
+.global main
+# Compiled w/ gcc grocerylistprotected.s library.s -o grocerylistprotected.exe -g
+# ./grocerylistprotected.exe < ../Payloads/CodeInjectPayloads/InfiniteLoopPayload.bin
+.data
+    # 144 Bytes
+    user_input:
+        .space  144, 0x2E
+
+    # 65 Bytes
+    user_prompt:
+        .asciz  "Enter in 0-9 and then list items EX: 4 Buns Cheese Sauce Lettuce"
+
+    # 13
+    grocery_header:
+        .asciz  "GROCERY LIST"
+
+.text
+
+main:
+    pushl   $user_prompt
+    call    puts
+    addl    $4, %esp
+
+    pushl   $user_input
+    call    gets
+    addl    $4, %esp
+
+    call    generate_list
+
+    ret
+
+generate_list:
+    # Prologue
+    pushl   %ebp
+    movl    %esp, %ebp
+
+    subl    $4, %esp
+    movl    %gs:20, %eax
+    movl    %eax, -4(%ebp)
+
+    movzx   user_input, %eax    # Store the first byte of input in %eax
+    subl    $'0', %eax          # Convert to an integer
+    sall    $4, %eax            # Multiply by 16 to get the total amount of space for new output
+    subl    %eax, %esp          # Allocate space on stack for output
+
+    # Move the global var on stack.
+    pushl   %esp                # Push address of where to write to
+    pushl   $user_input+2       # Push address of where to read input from
+    call    move_input          # Call function to move input
+    addl    $8, %esp            # Reclaim stack space
+
+    # Convert the local var to print each item on a newline, (replace 0x20 w/ 0x0A)
+    pushl   %esp
+    pushl   $0x0000000A
+    pushl   $0x00000020
+    call    replace_all
+    addl    $12, %esp
+
+    pushl   $grocery_header
+    call    puts
+    addl    $4, %esp
+
+    pushl   %esp
+    call    puts
+    addl    $4, %esp
+
+    movl    -4(%ebp), %eax
+    xorl    %gs:20, %eax
+    je      generate_list_exit
+
+    call    __stack_chk_fail
+
+    generate_list_exit:
+        leave
+        ret
